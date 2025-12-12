@@ -1,0 +1,4 @@
+"Level","Area","Sub-Area","Application Area if Applicable","Reference","Questions","Multiple Choices","Correct Answer"
+"average","DXP","Content","backend","java","1. Which of the following is responsible for managing the execution of .NET programs?","[""A) CLR (Common Language Runtime)"", ""B) CLS (Common Language Specification)"", ""C) CTS (Common Type System)"", ""D) JIT Compiler""]","A) CLR (Common Language Runtime)"
+"beginner","Cloud","Infrastructure","frontend","aws","2. Which AWS service is used for object storage?","[""A) EC2"", ""B) S3"", ""C) RDS"", ""D) Lambda""]","B) S3"
+"intermediate","Security","Network","backend","cyber","3. What does a firewall primarily protect against?","[""A) Unauthorized access"", ""B) Data loss"", ""C) Power failure"", ""D) Hardware malfunction""]","A) Unauthorized access"

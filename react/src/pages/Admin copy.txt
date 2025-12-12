@@ -1,0 +1,990 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Container, Paper, Tabs, Tab, TextField, Button, Stack, Typography, TableContainer, Table, TableHead, TableRow,
+  TableCell, TableBody,  IconButton, MenuItem, Chip, Box, CircularProgress, Snackbar, Alert,  Dialog, DialogTitle,
+  DialogContent, DialogActions, Menu, InputAdornment,  List, ListItem, ListItemText, Divider, TablePagination,
+  ButtonGroup, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio
+} from '@mui/material';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import DeleteIcon from '@mui/icons-material/Delete';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DownloadIcon from '@mui/icons-material/Download';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import SearchIcon from '@mui/icons-material/Search';
+import EditIcon from '@mui/icons-material/Edit';
+import { useAuth } from '../AuthContext';
+const fetchQuestionsForReviewAPI = (categoryId, page, size, mode) => new Promise((resolve) => {
+  console.log('Fetching questions for:', { categoryId, page, size, mode });
+  const allQuestions = {
+    'cat_101': [
+      { id: 'q1', text: 'What is a React Hook?', options: [{ text: 'A function', correct: false }, { text: 'A special function to "hook into" React features', correct: true }, { text: 'A class component method', correct: false }, { text: 'A type of variable', correct: false }], status: 'PENDING' },
+      { id: 'q2', text: 'Which hook is used for state management in functional components?', options: [{ text: 'useEffect', correct: false }, { text: 'useContext', correct: false }, { text: 'useState', correct: true }, { text: 'useReducer', correct: false }], status: 'PENDING' },
+    ],
+    'cat_102': [
+      { id: 'q3', text: 'What is the "this" keyword in Java?', options: [{ text: 'A reference to the current object', correct: true }, { text: 'A static variable', correct: false }, { text: 'A class name', correct: false }, { text: 'A primitive type', correct: false }], status: 'SELECTED' },
+      { id: 'q4', text: 'Which collection does not allow duplicate elements?', options: [{ text: 'List', correct: false }, { text: 'Map', correct: false }, { text: 'Set', correct: true }, { text: 'Queue', correct: false }], status: 'REJECTED' },
+      { id: 'q5', text: 'What is a "final" variable?', options: [{ text: 'A variable that can be changed', correct: false }, { text: 'A variable that must be initialized', correct: false }, { text: 'A constant whose value cannot be changed', correct: true }, { text: 'A global variable', correct: false }], status: 'PENDING' },
+    ],
+    'cat_103': [
+      { id: 'q6', text: 'What does "grid-template-columns" define?', options: [{ text: 'The rows of the grid', correct: false }, { text: 'The columns of the grid', correct: true }, { text: 'The gap between cells', correct: false }, { text: 'The alignment of items', correct: false }], status: 'SELECTED' },
+      { id: 'q7', text: 'What is "fr" unit?', options: [{ text: 'A fixed pixel value', correct: false }, { text: 'A percentage value', correct: false }, { text: 'A fractional unit of the available space', correct: true }, { text: 'A viewport height unit', correct: false }], status: 'SELECTED' },
+    ],
+    'cat_104': [
+       { id: 'q8', text: 'What is Spring Security?', options: [{ text: 'A database tool', correct: false }, { text: 'A build tool', correct: false }, { text: 'A framework for authentication and authorization', correct: true }, { text: 'A testing library', correct: false }], status: 'PENDING' },
+    ],
+    // Add mock for categoryId 0 from user sample
+    0: [
+       { id: 'q9', text: 'What is a "string" in this context?', options: [{ text: 'A datatype', correct: true }, { text: 'A rope', correct: false }, { text: 'A variable name', correct: false }, { text: 'A function', correct: false }], status: 'PENDING' },
+       { id: 'q10', text: 'What is "skillLevel"?', options: [{ text: 'A measure of expertise', correct: true }, { text: 'A game difficulty', correct: false }, { text: 'A project name', correct: false }, { text: 'An ID', correct: false }], status: 'PENDING' },
+    ]
+  };
+  const categoryQuestions = allQuestions[categoryId] || [];
+  let filteredQuestions = [];
+  if (mode === 'review') {
+    filteredQuestions = categoryQuestions.filter(q => q.status === 'PENDING');
+  } else if (mode === 'resume') {
+    filteredQuestions = categoryQuestions.filter(q => q.status === 'PENDING' || q.status === 'REJECTED');
+  } else if (mode === 'view') {
+    filteredQuestions = categoryQuestions.filter(q => q.status === 'SELECTED');
+  }
+  const totalElements = filteredQuestions.length;
+  const paginatedQuestions = filteredQuestions.slice(page * size, (page + 1) * size);
+  setTimeout(() => {
+    resolve({
+      content: paginatedQuestions,
+      totalElements: totalElements,
+      page: page,
+      size: size,
+    });
+  }, 800);
+});
+const submitReviewAPI = (categoryId, reviews) => new Promise((resolve) => {
+  console.log('Submitting review for:', categoryId, reviews);
+  setTimeout(() => {
+    resolve({ success: true, newStatus: 'Review Completed' });
+  }, 1000);
+});
+
+
+const API_BASE_URL = 'http://localhost:8081';
+const fetchAPI = async (endpoint, options = {}) => {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+  if (!response.ok) {
+    const errorInfo = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+    throw new Error(errorInfo.message || 'Network response was not ok');
+  }
+  if (response.status === 200 && options.method === 'DELETE') {
+    return { success: true };
+  }
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return text || { success: true }; 
+  }
+};
+const initialUserFormState = {
+  firstName: '',  lastName: '',  employeeNumber: '',  employeeGrade: '', email: '',
+  phone: '',  project: '',  businessUnit: '',  userRoleId: '',  roleCode: '',  managerId: ''
+};
+const initialTemplateSubject = { id: crypto.randomUUID(), subject: '', weight: '', difficulty: '' };
+const initialTemplateFormState = { name: '', description: '', subjects: [initialTemplateSubject] };
+const userRoles = ['Admin', 'Manager', 'Employee'];
+const employeeGrades = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8'];
+const availableDifficulties = ['Easy', 'Medium', 'Hard', 'Difficult', 'Beginner'];
+
+export default function Admin() {
+  const { currentUser } = useAuth();
+  const [tab, setTab] = useState(0);
+  const [toast, setToast] = useState('');
+  const [users, setUsers] = useState([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userForm, setUserForm] = useState(initialUserFormState);
+  const [managers, setManagers] = useState([]);
+  const [isLoadingManagers, setIsLoadingManagers] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userAnchorEl, setUserAnchorEl] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userModalMode, setUserModalMode] = useState('create');
+  const [isUserFormModalOpen, setUserFormModalOpen] = useState(false);
+  const [isUserViewModalOpen, setUserViewModalOpen] = useState(false);
+
+  const [subjectName, setSubjectName] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploads, setUploads] = useState([]);
+  const [templateForm, setTemplateForm] = useState(initialTemplateFormState);
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [availableSubjects, setAvailableSubjects] = useState([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [templateError, setTemplateError] = useState(null);
+  const [templateAnchorEl, setTemplateAnchorEl] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateModalMode, setTemplateModalMode] = useState('create');
+  const [isTemplateFormModalOpen, setTemplateFormModalOpen] = useState(false);
+  const [isTemplateViewModalOpen, setTemplateViewModalOpen] = useState(false);
+
+  const [reviewUploads, setReviewUploads] = useState([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [reviewAnchorEl, setReviewAnchorEl] = useState(null);
+  const [selectedReviewItem, setSelectedReviewItem] = useState(null);
+  const [isReviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewMode, setReviewMode] = useState('review'); // 'review', 'resume', 'view'
+  const [reviewQuestions, setReviewQuestions] = useState([]);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [questionSelections, setQuestionSelections] = useState({}); // { [questionId]: 'selected' | 'rejected' }
+  const [reviewPagination, setReviewPagination] = useState({ page: 0, rowsPerPage: 5, totalElements: 0 });
+  useEffect(() => {
+    if (tab === 0) {
+      const fetchUsers = async () => {
+        setIsLoadingUsers(true);
+        try {
+          const data = await fetchAPI('/api/users');
+          setUsers(data);
+        } catch (err) {
+          setToast(`Failed to load users: ${err.message}`);
+        } finally {
+          setIsLoadingUsers(false);
+        }
+      };
+      fetchUsers();
+    } else if (tab === 2) {
+        const fetchReviewData = async () => {
+            setIsLoadingReviews(true);
+            try {
+                const data = await fetchAPI('/api/categories/getAllCategories'); 
+                setReviewUploads(Array.isArray(data) ? data : []); // Ensure data is an array
+            } catch (err) {
+                setToast(`Failed to load reviewable questionnaires: ${err.message}`);
+                setReviewUploads([]); // Set to empty array on error
+            } finally {
+                setIsLoadingReviews(false);
+            }
+        };
+        fetchReviewData();
+    } else if (tab === 3) { // --- OLD TAB 2, NOW 3 ---
+      const fetchTemplateData = async () => {
+        setIsLoadingTemplates(true);
+        setTemplateError(null);
+        try {
+          const [subjectsData, templatesData] = await Promise.all([
+            fetchAPI('/api/categories/getAllCategories'),
+            fetchAPI('/api/adminTemplate/getAllAdminTemplates')
+          ]);
+          const uniqueCategories = templatesData.length > 0 ? 
+              availableSubjects : // If templates exist, API might be different (keep old logic)
+              [...new Map(subjectsData.map(item => [item.categoryName, item])).values()]; // Use new API data
+          setAvailableSubjects(uniqueCategories);
+          setSavedTemplates(templatesData);
+        } catch (err) {
+          setTemplateError(`Failed to load template data: ${err.message}`);
+        } finally {
+          setIsLoadingTemplates(false);
+        }
+      };
+      fetchTemplateData();
+    }
+  }, [tab]);
+
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery) return users;
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return users.filter(user =>
+      `${user.firstName} ${user.lastName}`.toLowerCase().includes(lowercasedQuery) ||
+      (user.employeeNumber || '').toLowerCase().includes(lowercasedQuery) ||
+      (user.project || '').toLowerCase().includes(lowercasedQuery) ||
+      user.roleCode.toLowerCase().includes(lowercasedQuery) ||
+      user.email.toLowerCase().includes(lowercasedQuery)
+    );
+  }, [users, searchQuery]);
+
+  const canSaveUser = useMemo(() => {
+    const {
+      firstName, lastName, phone, email, roleCode, managerId,
+      employeeNumber, employeeGrade, project, businessUnit
+    } = userForm;
+    const baseFieldsValid =
+      firstName && lastName && phone && email && roleCode &&
+      employeeNumber && employeeGrade && project && businessUnit;
+    return roleCode === 'Employee' ? baseFieldsValid && managerId : (baseFieldsValid && roleCode !== 'Employee');
+  }, [userForm]);
+
+  const handleRoleChange = async (event) => {
+    const newRole = event.target.value;
+    console.log('newRole :: ', newRole)
+    setUserForm({ ...userForm, roleCode: newRole, managerId: '' });
+    if (newRole === 'Employee' && managers.length === 0) {
+      setIsLoadingManagers(true);
+      try {
+        const data = await fetchAPI('/api/users/managers');
+        setManagers(data);
+      } catch (err) {
+        setToast(`Failed to fetch managers: ${err.message}`);
+      } finally {
+        setIsLoadingManagers(false);
+      }
+    }
+  };
+
+  const handleFormSubmit = () => {
+    if (userModalMode === 'create') handleCreateUser();
+    else handleUpdateUser();
+  };
+
+  const handleCreateUser = async () => {
+    try {
+      const newUser = await fetchAPI('/api/create/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userForm),
+      });
+      setToast(`User "${newUser.firstName} ${newUser.lastName}" created successfully!`);
+      setUsers(prev => [newUser, ...prev]);
+      handleUserFormModalClose();
+    } catch (err) {
+      setToast(`Error: Could not create user. ${err.message}`);
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    try {
+      const updatedUser = await fetchAPI(`/api/update/user/${userForm.userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userForm),
+      });
+      setToast(`User "${updatedUser.firstName}" updated successfully!`);
+      setUsers(prev => prev.map(u => (u.userId === updatedUser.userId ? updatedUser : u)));
+      handleUserFormModalClose();
+    } catch (err) {
+      setToast(`Error: Could not update user. ${err.message}`);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    try {
+      await fetchAPI(`/api/users/delete/${userId}`, { method: 'DELETE' });
+      setUsers(prev => prev.filter(u => u.userId !== userId));
+      setToast('User deleted successfully.');
+    } catch (err) {
+      setToast(`Error: Could not delete user. ${err.message}`);
+    }
+    handleUserMenuClose();
+  };
+
+  const handleToggleUserStatus = async (userId) => {
+    try {
+      const updatedUser = await fetchAPI(`/api/users/toggle-status/${userId}`, { method: 'PATCH' });
+      setUsers(prev => prev.map(u => (u.userId === userId ? updatedUser : u)));
+      setToast(`User status updated to "${updatedUser.status}".`);
+    } catch (err) {
+      setToast(`Error: Could not update user status. ${err.message}`);
+    }
+    handleUserMenuClose();
+  };
+
+  const handleUserMenuOpen = (event, user) => { setUserAnchorEl(event.currentTarget); setSelectedUser(user); };
+  const handleUserMenuClose = () => { setUserAnchorEl(null); };
+  const handleUserFormModalClose = () => { setUserFormModalOpen(false); setUserForm(initialUserFormState); setSelectedUser(null); };
+  const handleViewModalClose = () => { setUserViewModalOpen(false); setSelectedUser(null); };
+  const openCreateModal = () => { setUserModalMode('create'); setUserForm(initialUserFormState); setUserFormModalOpen(true); };
+  const openViewModal = () => { setUserViewModalOpen(true); handleUserMenuClose(); };
+  const openEditModal = () => { setUserModalMode('edit'); setUserForm(selectedUser); setUserViewModalOpen(false); setUserFormModalOpen(true); handleUserMenuClose(); };
+
+  const canUpload = useMemo(() => subjectName.trim() && file, [subjectName, file]);
+  const onFilePick = (e) => {
+    const f = e.target.files?.[0];
+    if (f && f.type !== 'application/pdf') {
+      setToast('Please upload a PDF file');
+      e.target.value = '';
+      return;
+    }
+    setFile(f || null);
+  };
+  const onUpload = () => {
+    if (!canUpload) return;
+    setUploads(prev => [{ id: crypto.randomUUID(), subjectName: subjectName.trim(), fileName: file.name, uploadedAt: Date.now(), blobUrl: URL.createObjectURL(file) }, ...prev]);
+    setSubjectName('');
+    setFile(null);
+    setToast('Mock upload successful! This will be processed and appear in the "Review Questionnaire" tab after backend processing.');
+  };
+  const onDeleteUpload = (id) => setUploads(prev => prev.filter(u => u.id !== id));
+
+  const totalWeight = useMemo(() => templateForm.subjects.reduce((sum, s) => sum + (Number(s.weight) || 0), 0), [templateForm.subjects]);
+
+  const handleSubjectChange = (id, field, value) => {
+    const updatedSubjects = templateForm.subjects.map(s => (s.id === id ? { ...s, [field]: value } : s));
+    setTemplateForm(prev => ({ ...prev, subjects: updatedSubjects }));
+  };
+  const addSubjectRow = () => { setTemplateForm(prev => ({ ...prev, subjects: [...prev.subjects, { ...initialTemplateSubject, id: crypto.randomUUID() }] })); };
+  const removeSubjectRow = (id) => { setTemplateForm(prev => ({ ...prev, subjects: prev.subjects.filter(s => s.id !== id) })); };
+
+  const canCreateTemplate = useMemo(() => {
+    const { name, subjects } = templateForm;
+    const hasName = name.trim() !== '';
+    const isWeight100 = totalWeight === 100;
+    const allFieldsFilled = subjects.every(s => s.subject && s.weight && s.difficulty);
+    return hasName && isWeight100 && allFieldsFilled;
+  }, [templateForm, totalWeight]);
+
+  const handleTemplateFormSubmit = () => {
+    if (templateModalMode === 'create') handleCreateTemplate(); else handleUpdateTemplate();
+  };
+
+  const handleCreateTemplate = async () => {
+    const categoryIdLookup = availableSubjects.reduce((acc, sub) => {
+      acc[sub.categoryName] = sub.categoryId;
+      return acc;
+    }, {});
+
+    const payload = {
+      adminTemplateName: templateForm.name,
+      description: templateForm.description,
+      createdUserId: "ADMIN",
+      adminTemplateCategoryMap: templateForm.subjects.map(s => {
+        const categoryId = categoryIdLookup[s.subject];
+        if (!categoryId) {
+          console.error(`Could not find categoryId for subject: ${s.subject}`);
+        }
+        return {
+          categoryId: categoryId,
+          weighage: Number(s.weight),
+          difficultyLevel: s.difficulty,
+          createdUserId: "ADMIN"
+        };
+      })
+    };
+    if (payload.adminTemplateCategoryMap.some(item => !item.categoryId)) {
+      setToast('Error: An invalid category was selected. Please try again.');
+      return;
+    }
+
+    try {
+      await fetchAPI('/api/adminTemplate/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      setToast('Template created successfully! 🎉');
+      const updatedTemplates = await fetchAPI('/api/adminTemplate/getAllAdminTemplates');
+      setSavedTemplates(updatedTemplates);
+      handleTemplateFormModalClose();
+    } catch (err) {
+      setToast(`Error: Could not save template. ${err.message}`);
+    }
+  };
+
+  const handleUpdateTemplate = async () => {
+    try {
+      await fetchAPI(`/api/templates/update/${templateForm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(templateForm),
+      });
+      setToast('Template updated successfully!');
+      const updatedTemplates = await fetchAPI('/api/adminTemplate/getAllAdminTemplates');
+      setSavedTemplates(updatedTemplates);
+      handleTemplateFormModalClose();
+    } catch (err) {
+      setToast(`Error: Could not update template. ${err.message}`);
+    }
+  };
+
+  const deleteSavedTemplate = async (templateId) => {
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
+    try {
+      await fetchAPI(`/api/templates/delete/${templateId}`, { method: 'DELETE' });
+      setSavedTemplates(prev => prev.filter(t => t.id !== templateId));
+      setToast('Template deleted successfully.');
+    } catch (err) {
+      setToast(`Error: Could not delete template. ${err.message}`);
+    }
+    handleTemplateMenuClose();
+  };
+
+  const handleTemplateMenuOpen = (event, template) => { setTemplateAnchorEl(event.currentTarget); setSelectedTemplate(template); };
+  const handleTemplateMenuClose = () => setTemplateAnchorEl(null);
+  const handleTemplateFormModalClose = () => { setTemplateFormModalOpen(false); setTemplateForm(initialTemplateFormState); setSelectedTemplate(null); };
+  const handleTemplateViewModalClose = () => { setTemplateViewModalOpen(false); setSelectedTemplate(null); };
+  const openCreateTemplateModal = () => { setTemplateModalMode('create'); setTemplateForm(initialTemplateFormState); setTemplateFormModalOpen(true); };
+  const openViewTemplateModal = () => { setTemplateViewModalOpen(true); handleTemplateMenuClose(); };
+  const openEditTemplateModal = () => { setTemplateModalMode('edit'); setTemplateForm(selectedTemplate); setTemplateViewModalOpen(false); setTemplateFormModalOpen(true); handleTemplateMenuClose(); };
+
+  const handleReviewMenuOpen = (event, item) => {
+    setReviewAnchorEl(event.currentTarget);
+    setSelectedReviewItem(item);
+  };
+  const handleReviewMenuClose = () => {
+    setReviewAnchorEl(null);
+  };
+  const fetchQuestions = async (categoryId, page, size, mode) => {
+    setIsLoadingQuestions(true);
+    setReviewQuestions([]); // Clear old questions
+    try {
+        const data = await fetchQuestionsForReviewAPI(categoryId, page, size, mode);
+        setReviewQuestions(data.content);
+        setReviewPagination(prev => ({ ...prev, page: data.page, rowsPerPage: data.size, totalElements: data.totalElements }));
+        if (mode === 'resume') {
+            const existingSelections = data.content.reduce((acc, q) => {
+                if (q.status === 'REJECTED') {
+                    acc[q.id] = 'rejected';
+                }
+                return acc;
+            }, {});
+            setQuestionSelections(existingSelections);
+        } else {
+            setQuestionSelections({}); // Reset for 'review' or 'view'
+        }
+    } catch (err) {
+        setToast(`Failed to fetch questions: ${err.message}`);
+    } finally {
+        setIsLoadingQuestions(false);
+    }
+  };
+  const openReviewModal = (mode) => {
+    if (!selectedReviewItem) return;
+    setReviewMode(mode);
+    setReviewModalOpen(true);
+    fetchQuestions(selectedReviewItem.categoryId, 0, reviewPagination.rowsPerPage, mode);
+    handleReviewMenuClose();
+  };
+  const handleReviewModalClose = () => {
+    setReviewModalOpen(false);
+    setSelectedReviewItem(null);
+    setReviewQuestions([]);
+    setQuestionSelections({});
+    setReviewPagination({ page: 0, rowsPerPage: 5, totalElements: 0 });
+  };
+  const handleQuestionSelection = (questionId, status) => {
+    setQuestionSelections(prev => ({
+        ...prev,
+        [questionId]: status
+    }));
+  };
+  const handleReviewPageChange = (event, newPage) => {
+    fetchQuestions(selectedReviewItem.categoryId, newPage, reviewPagination.rowsPerPage, reviewMode);
+  };
+  const handleReviewRowsPerPageChange = (event) => {
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    fetchQuestions(selectedReviewItem.categoryId, 0, newRowsPerPage, reviewMode);
+  };
+  const handleSubmitReview = async () => {
+    if (Object.keys(questionSelections).length === 0) {
+        setToast('No selections made. Please review at least one question.');
+        return;
+    }
+    setIsSubmittingReview(true);
+    const payload = Object.entries(questionSelections).map(([questionId, status]) => ({
+      questionId,
+      status // 'selected' or 'rejected'
+    }));
+    try {
+        const response = await submitReviewAPI(selectedReviewItem.categoryId, payload);
+        setReviewUploads(prev => prev.map(item => 
+            item.categoryId === selectedReviewItem.categoryId 
+            ? { ...item, status: response.newStatus } 
+            : item
+        ));
+        setToast('Review submitted successfully!');
+        handleReviewModalClose();
+    } catch (err) {
+        setToast(`Failed to submit review: ${err.message}`);
+    } finally {
+        setIsSubmittingReview(false);
+    }
+  };
+  const getStatusChipColor = (status) => {
+    switch(status) {
+        case 'Review Scheduled': return 'primary';
+        case 'Review In Progress': return 'warning';
+        case 'Review Completed': return 'success';
+        default: return 'default';
+    }
+  };
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Paper sx={{ p: 3, mb: 2 }}>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} aria-label="Admin tabs">
+          <Tab label="Manage Users" />
+          <Tab label="Questionnaire Upload" />
+          <Tab label="Review Questionnaire" />
+          <Tab label="Assessment Template" />
+        </Tabs>
+      </Paper>
+
+      <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity="info" onClose={() => setToast('')} sx={{ width: '100%' }}>{toast}</Alert>
+      </Snackbar>
+
+      {tab === 0 && (
+        <Paper sx={{ p: 3 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+            <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={openCreateModal}>
+              Create User
+            </Button>
+            <TextField
+              size="small"
+              placeholder="Search by name, emp no, project..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>),
+              }}
+              sx={{ width: 320 }}
+            />
+          </Stack>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Employee Name</TableCell>
+                  <TableCell>Emp No.</TableCell>
+                  <TableCell>Project/Program</TableCell>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {isLoadingUsers ? (
+                  <TableRow><TableCell colSpan={6} align="center"><CircularProgress /></TableCell></TableRow>
+                ) : filteredUsers.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} align="center">No users found.</TableCell></TableRow>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <TableRow key={user.userId} hover>
+                      <TableCell>
+                        <Typography variant="body1" fontWeight="medium">{`${user.firstName} ${user.lastName}`}</Typography>
+                        <Typography variant="body2" color="text.secondary">{user.email}</Typography>
+                      </TableCell>
+                      <TableCell>{user.employeeNumber}</TableCell>
+                      <TableCell>{user.project}</TableCell>
+                      <TableCell>{user.roleName}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={user.status}
+                          color={user.status === 'active' ? 'success' : 'default'}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <IconButton onClick={(event) => handleUserMenuOpen(event, user)}>
+                          <MoreVertIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
+      {tab === 1 && (
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6">Upload Assessment Category PDF</Typography>
+          <Stack spacing={2} sx={{ mt: 2, maxWidth: 640 }}>
+            <TextField label="Category Name" value={subjectName} onChange={(e) => setSubjectName(e.target.value)} required />
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Button variant="outlined" component="label" startIcon={<UploadFileIcon />}>Choose PDF<input hidden type="file" accept="application/pdf" onChange={onFilePick} /></Button>
+              <Typography variant="body2">{file ? file.name : 'No file selected'}</Typography>
+              <Button variant="contained" onClick={onUpload} disabled={!canUpload}>Upload</Button>
+            </Stack>
+            <Typography variant="subtitle1" sx={{ mt: 3 }}>Available Category PDFs</Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead><TableRow><TableCell>Category</TableCell><TableCell>File</TableCell><TableCell>Uploaded At</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
+                <TableBody>
+                  {uploads.length === 0 && <TableRow><TableCell colSpan={4}>No Category PDFs uploaded</TableCell></TableRow>}
+                  {uploads.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell>{u.subjectName}</TableCell><TableCell>{u.fileName}</TableCell><TableCell>{new Date(u.uploadedAt).toLocaleString()}</TableCell>
+                      <TableCell align="right">
+                        <IconButton size="small" component="a" href={u.blobUrl} download={u.fileName}><DownloadIcon /></IconButton>
+                        <IconButton size="small" color="error" onClick={() => onDeleteUpload(u.id)}><DeleteIcon /></IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Stack>
+        </Paper>
+      )}
+
+      {/* --- NEW TAB PANEL (Review Questionnaire) --- */}
+      {tab === 2 && (
+        <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 3 }}>Review Questionnaires</Typography>
+            <TableContainer>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>Category ID</TableCell>
+                            <TableCell>Category Name</TableCell>
+                            <TableCell>Sub-category</TableCell>
+                            <TableCell>Upload Date</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {isLoadingReviews ? (
+                            <TableRow><TableCell colSpan={6} align="center"><CircularProgress /></TableCell></TableRow>
+                        ) : reviewUploads.length === 0 ? (
+                            <TableRow><TableCell colSpan={6} align="center">No questionnaires to review.</TableCell></TableRow>
+                        ) : (
+                            reviewUploads.map((item) => (
+                                <TableRow key={item.categoryId} hover>
+                                    <TableCell>{item.categoryId}</TableCell>
+                                    <TableCell>{item.categoryName}</TableCell>
+                                    <TableCell>{item.subCategoryName || 'N/A'}</TableCell>
+                                    <TableCell>{new Date(item.createdDate).toLocaleString()}</TableCell>
+                                    <TableCell>
+                                        <Chip
+                                            label={item.status}
+                                            color={getStatusChipColor(item.status)}
+                                            size="small"
+                                        />
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <IconButton onClick={(e) => handleReviewMenuOpen(e, item)}>
+                                            <MoreVertIcon />
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </Paper>
+      )}
+      {/* --- ASSESSMENT TEMPLATE TAB (was 2, now 3) --- */}
+      {tab === 3 && ( 
+        <Paper sx={{ p: 3 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+            <Typography variant="h6">Saved Templates</Typography>
+            <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={openCreateTemplateModal}>
+              Create Template
+            </Button>
+          </Stack>
+          {isLoadingTemplates ? <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}><CircularProgress /></Box> :
+            templateError ? <Alert severity="error">{templateError}</Alert> :
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Template Name</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell>Category & Weights</TableCell>
+                      <TableCell>Created Date</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {savedTemplates.length === 0 ? <TableRow><TableCell colSpan={3} align="center">No templates found.</TableCell></TableRow> :
+                      savedTemplates.map(template => (
+                        <TableRow key={template.adminTemplateId} hover>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{template.adminTemplateName}</TableCell>
+                          <TableCell title={template.description} sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}> {template.description || 'N/A'}</TableCell>
+                          <TableCell>
+                            <Stack direction="column" spacing={0.5} alignItems="flex-start">
+                              {template.adminTemplateCategoryMap.map(sub => (
+                                <Chip
+                                  key={sub.category.categoryId}
+                                  label={`${sub.category.categoryName}: ${sub.weighage}% (${sub.difficultyLevel})`}
+                                  size="small"
+                                />
+                              ))}
+                            </Stack>
+                          </TableCell>
+                          <TableCell>{template.createdDate ? new Date(template.createdDate).toLocaleDateString() : 'N/A'}</TableCell>
+                          <TableCell align="right">
+                            <IconButton onClick={(e) => handleTemplateMenuOpen(e, template)}><MoreVertIcon /></IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+          }
+        </Paper>
+      )}
+
+      {/* --- Action Menu --- */}
+      <Menu anchorEl={userAnchorEl} open={Boolean(userAnchorEl)} onClose={handleUserMenuClose}>
+        <MenuItem onClick={openViewModal}>View</MenuItem>
+        <MenuItem onClick={openEditModal}>Edit</MenuItem>
+        <MenuItem onClick={() => handleToggleUserStatus(selectedUser.userId)}>
+          {selectedUser?.status === 'active' ? 'Deactivate' : 'Activate'}
+        </MenuItem>
+        <MenuItem onClick={() => handleDeleteUser(selectedUser.userId)} sx={{ color: 'error.main' }}>
+          Delete
+        </MenuItem>
+      </Menu>
+
+      {/* --- Updated Create / Edit User Dialog --- */}
+      <Dialog open={isUserFormModalOpen} onClose={handleUserFormModalClose} maxWidth="sm" fullWidth>
+        <DialogTitle>{userModalMode === 'create' ? 'Create a New User' : 'Edit User Details'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Stack direction="row" spacing={2}>
+              <TextField label="First Name" value={userForm.firstName} onChange={(e) => setUserForm({ ...userForm, firstName: e.target.value })} required fullWidth />
+              <TextField label="Last Name" value={userForm.lastName} onChange={(e) => setUserForm({ ...userForm, lastName: e.target.value })} required fullWidth />
+            </Stack>
+            <Stack direction="row" spacing={2}>
+              <TextField label="Employee Number" value={userForm.employeeNumber} onChange={(e) => setUserForm({ ...userForm, employeeNumber: e.target.value })} required fullWidth />
+              <TextField label="Employee Grade" select value={userForm.employeeGrade} onChange={(e) => setUserForm({ ...userForm, employeeGrade: e.target.value })} required fullWidth>
+                <MenuItem value="" disabled><em>Select a grade</em></MenuItem>
+                {employeeGrades.map(grade => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}
+              </TextField>
+            </Stack>
+            <TextField label="Mail ID" type="email" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
+            <TextField label="Mobile No" type="tel" value={userForm.phone} onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} required />
+            <TextField label="Project/Program" value={userForm.project} onChange={(e) => setUserForm({ ...userForm, project: e.target.value })} required />
+            <TextField label="Business Unit" value={userForm.businessUnit} onChange={(e) => setUserForm({ ...userForm, businessUnit: e.target.value })} required />
+            <TextField label="Role" select value={userForm.roleCode} onChange={handleRoleChange} required>
+              <MenuItem value="" disabled><em>Select a role</em></MenuItem>
+              {userRoles.map(roleCode => <MenuItem key={roleCode} value={roleCode}>{roleCode}</MenuItem>)}
+            </TextField>
+            {userForm.roleCode === 'Employee' && (
+              <TextField label="Select Manager" select value={userForm.managerId} onChange={(e) => setUserForm({ ...userForm, managerId: e.target.value })} required disabled={isLoadingManagers}>
+                {isLoadingManagers ? (
+                  <MenuItem value="" disabled><Stack direction="row" alignItems="center" spacing={1}><CircularProgress size={20} /> <Typography>Loading...</Typography></Stack></MenuItem>
+                ) : (
+                  managers.map(manager => <MenuItem key={manager.userId} value={manager.userId}>{`${manager.firstName} ${manager.lastName}`}</MenuItem>)
+                )}
+              </TextField>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleUserFormModalClose}>Cancel</Button>
+          <Button variant="contained" onClick={handleFormSubmit} disabled={!canSaveUser}>
+            {userModalMode === 'create' ? 'Create User' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* --- Updated View User Details Dialog --- */}
+      {selectedUser && (
+        <Dialog open={isUserViewModalOpen} onClose={handleViewModalClose} maxWidth="xs" fullWidth>
+          <DialogTitle>User Details</DialogTitle>
+          <DialogContent>
+            <List disablePadding>
+              <ListItem><ListItemText primary="First Name" secondary={selectedUser.firstName} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Last Name" secondary={selectedUser.lastName} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Employee Number" secondary={selectedUser.employeeNumber || 'N/A'} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Employee Grade" secondary={selectedUser.employeeGrade || 'N/A'} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Mail ID" secondary={selectedUser.email} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Mobile Number" secondary={selectedUser.phone} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Project/Program" secondary={selectedUser.project || 'N/A'} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Business Unit" secondary={selectedUser.businessUnit || 'N/A'} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Role" secondary={selectedUser.roleCode} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Status" secondary={<Chip label={selectedUser.status} color={selectedUser.status === 'active' ? 'success' : 'default'} size="small" />} /></ListItem>
+            </List>
+          </DialogContent>
+          <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+            <Button onClick={handleViewModalClose}>Close</Button>
+            <Button variant="contained" startIcon={<EditIcon />} onClick={openEditModal}>Edit Details</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      {/* --- TEMPLATE ACTION MENU --- */}
+      <Menu anchorEl={templateAnchorEl} open={Boolean(templateAnchorEl)} onClose={handleTemplateMenuClose}>
+        <MenuItem onClick={openViewTemplateModal}>View</MenuItem>
+        <MenuItem onClick={openEditTemplateModal}>Edit</MenuItem>
+        <MenuItem onClick={() => deleteSavedTemplate(selectedTemplate.id)} sx={{ color: 'error.main' }}>Delete</MenuItem>
+      </Menu>
+      <Dialog open={isTemplateFormModalOpen} onClose={handleTemplateFormModalClose} maxWidth="md" fullWidth>
+        <DialogTitle>{templateModalMode === 'create' ? 'Create New Template' : 'Edit Template'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 2 }}>
+            <TextField label="Template Name" placeholder="e.g., React Full stack Assessment" value={templateForm.name} onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })} />
+            <TextField label="Description" placeholder="Add a brief description for this template" rows={3}
+              value={templateForm.description || ''}
+              onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
+            />
+            <Typography variant="subtitle2" color="text.secondary">Category</Typography>
+            {templateForm.subjects.map((s, index) => (
+              <Stack direction="row" spacing={2} key={s.id} alignItems="center">
+                <TextField select label={`Category ${index + 1}`} value={s.subject} onChange={e => handleSubjectChange(s.id, 'subject', e.target.value)} sx={{ flex: 2 }}>
+                  {availableSubjects.map(sub => <MenuItem key={sub.categoryName} value={sub.categoryName}>{sub.categoryName}</MenuItem>)}
+                </TextField>
+                <TextField label="Weight (%)" placeholder="e.g., 50" type="number" value={s.weight} onChange={e => handleSubjectChange(s.id, 'weight', e.target.value)} sx={{ flex: 1 }} />
+                <TextField select label="Difficulty" value={s.difficulty} onChange={e => handleSubjectChange(s.id, 'difficulty', e.target.value)} sx={{ flex: 1.5 }}>
+                  {availableDifficulties.map(diff => <MenuItem key={diff} value={diff}>{diff}</MenuItem>)}
+                </TextField>
+                {templateForm.subjects.length > 1 && <IconButton onClick={() => removeSubjectRow(s.id)} color="error"><DeleteIcon /></IconButton>}
+              </Stack>
+            ))}
+            <Box>
+              <Button startIcon={<AddCircleOutlineIcon />} onClick={addSubjectRow}>Add Category</Button>
+            </Box>
+            <Typography variant="h6" alignSelf="flex-end">Total Weight: <Box component="span" sx={{ color: totalWeight === 100 ? 'success.main' : 'error.main', ml: 1, fontWeight: 'bold' }}>{totalWeight}%</Box></Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleTemplateFormModalClose}>Cancel</Button>
+          <Button variant="contained" onClick={handleTemplateFormSubmit} disabled={!canCreateTemplate}>
+            {templateModalMode === 'create' ? 'Create Template' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* --- VIEW TEMPLATE DIALOG --- */}
+      {selectedTemplate && (
+        <Dialog open={isTemplateViewModalOpen} onClose={handleTemplateViewModalClose} maxWidth="sm" fullWidth>
+          <DialogTitle>Template Details</DialogTitle>
+          <DialogContent>
+            <List disablePadding>
+              <ListItem><ListItemText primary="Template Name" secondary={selectedTemplate.name} /></ListItem>
+              <Divider component="li" />
+              <ListItem><ListItemText primary="Description" secondary={selectedTemplate.description || 'N/A'} /></ListItem>
+              <Divider component="li" />
+
+              <ListItem>
+                <ListItemText
+                  primary="Category"
+                  secondary={
+                    <Stack direction="column" spacing={0.5} alignItems="flex-start" sx={{ mt: 1 }}>
+                      {selectedTemplate.adminTemplateCategoryMap.map(sub => (
+                        <Chip
+                          key={sub.category.categoryId}
+                          label={`${sub.category.categoryName}: ${sub.weighage}% (${sub.difficultyLevel})`}
+                          size="small"
+                        />
+                      ))}
+                    </Stack>
+                  }
+                />
+              </ListItem>
+            </List>
+          </DialogContent>
+          <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+            <Button onClick={handleTemplateViewModalClose}>Close</Button>
+            <Button variant="contained" startIcon={<EditIcon />} onClick={openEditTemplateModal}>Edit Template</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      {/* --- NEW: REVIEW QUESTIONNAIRE ACTION MENU --- */}
+      <Menu anchorEl={reviewAnchorEl} open={Boolean(reviewAnchorEl)} onClose={handleReviewMenuClose}>
+        {selectedReviewItem?.status === 'Review Scheduled' && (
+            <MenuItem onClick={() => openReviewModal('review')}>Review</MenuItem>
+        )}
+        {selectedReviewItem?.status === 'Review In Progress' && (
+            <MenuItem onClick={() => openReviewModal('resume')}>Resume Review</MenuItem>
+        )}
+        {selectedReviewItem?.status === 'Review Completed' && (
+            <MenuItem onClick={() => openReviewModal('view')}>View Review</MenuItem>
+        )}
+      </Menu>
+      {/* --- NEW: REVIEW/VIEW QUESTIONS DIALOG --- */}
+      {selectedReviewItem && (
+        <Dialog open={isReviewModalOpen} onClose={handleReviewModalClose} maxWidth="md" fullWidth>
+            <DialogTitle>
+                {reviewMode === 'review' && 'Review Questions'}
+                {reviewMode === 'resume' && 'Resume Review'}
+                {reviewMode === 'view' && 'View Selected Questions'}
+                <Typography variant="body2" color="text.secondary">{selectedReviewItem.categoryName} - {selectedReviewItem.subCategoryName}</Typography>
+            </DialogTitle>
+            <DialogContent>
+                {isLoadingQuestions ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}><CircularProgress /></Box>
+                ) : reviewQuestions.length === 0 ? (
+                    <Typography align="center" sx={{ my: 5 }}>No questions to display.</Typography>
+                ) : (
+                    <Stack spacing={3} sx={{ mt: 2 }}>
+                        {reviewQuestions.map((q, qIndex) => (
+                            <Paper key={q.id} variant="outlined" sx={{ p: 2 }}>
+                                <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
+                                    Question {reviewPagination.page * reviewPagination.rowsPerPage + qIndex + 1}
+                                </Typography>
+                                <Typography variant="body1" sx={{ mb: 2 }}>{q.text}</Typography>
+                                <FormControl component="fieldset" fullWidth>
+                                    <FormLabel component="legend">Options</FormLabel>
+                                    <List disablePadding>
+                                        {q.options.map((opt, oIndex) => (
+                                            <ListItem key={oIndex} disablePadding sx={{ 
+                                                color: opt.correct ? 'success.dark' : 'text.primary',
+                                                fontWeight: opt.correct ? 'bold' : 'normal'
+                                            }}>
+                                                <ListItemText 
+                                                    primary={`${String.fromCharCode(65 + oIndex)}. ${opt.text}`} 
+                                                    primaryTypographyProps={{
+                                                        sx: { 
+                                                            fontWeight: opt.correct ? 'bold' : 'normal',
+                                                            color: opt.correct ? 'success.dark' : 'inherit'
+                                                        }
+                                                    }}
+                                                />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </FormControl>
+                                {reviewMode !== 'view' && (
+                                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                                        <ButtonGroup size="small">
+                                            <Button
+                                                variant={questionSelections[q.id] === 'selected' ? 'contained' : 'outlined'}
+                                                color="success"
+                                                onClick={() => handleQuestionSelection(q.id, 'selected')}
+                                            >
+                                                Select
+                                            </Button>
+                                            <Button
+                                                variant={questionSelections[q.id] === 'rejected' ? 'contained' : 'outlined'}
+                                                color="error"
+                                                onClick={() => handleQuestionSelection(q.id, 'rejected')}
+                                            >
+                                                Reject
+                                            </Button>
+                                        </ButtonGroup>
+                                    </Box>
+                                )}
+                            </Paper>
+                        ))}
+                    </Stack>
+                )}
+            </DialogContent>
+            <DialogActions sx={{ justifyContent: 'space-between', p: 2, flexWrap: 'wrap' }}>
+                <Box sx={{ minWidth: 150, mb: { xs: 1, sm: 0 } }}>
+                    {reviewMode !== 'view' && (
+                        <Button 
+                            variant="contained" 
+                            onClick={handleSubmitReview}
+                            disabled={isSubmittingReview}
+                        >
+                            {isSubmittingReview ? <CircularProgress size={24} /> : 'Submit Review'}
+                        </Button>
+                    )}
+                </Box>
+                <TablePagination
+                    component="div"
+                    count={reviewPagination.totalElements}
+                    page={reviewPagination.page}
+                    onPageChange={handleReviewPageChange}
+                    rowsPerPage={reviewPagination.rowsPerPage}
+                    onRowsPerPageChange={handleReviewRowsPerPageChange}
+                    rowsPerPageOptions={[5, 10, 25]}
+                   sx={{ minWidth: 300, flexShrink: 0 }}
+                />
+                 <Button onClick={handleReviewModalClose} sx={{ minWidth: 80, mt: { xs: 1, sm: 0 } }}>Close</Button>
+            </DialogActions>
+        </Dialog>
+      )}
+    </Container>
+  );
+}

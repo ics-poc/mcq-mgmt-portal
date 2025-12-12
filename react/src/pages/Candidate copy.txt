@@ -1,0 +1,409 @@
+import { useState, useEffect } from 'react';
+import {
+  Box, Container, Paper, Typography, Button, Stack, Divider, Chip, Dialog,
+  DialogTitle, DialogContent, DialogActions, RadioGroup, FormControlLabel,
+  Radio, FormControl, LinearProgress, Table, TableBody,
+  TableCell, TableContainer, TableHead, TableRow, CircularProgress,
+  Accordion, AccordionSummary, AccordionDetails, List, ListItem, Grid
+} from '@mui/material';
+import { CheckCircle, Cancel, HelpOutline, ExpandMore } from '@mui/icons-material';
+import { useAuth } from '../AuthContext';
+
+const API_BASE_URL = 'http://localhost:8081/api';
+const api = {
+  getAllExams: (candidateId) => fetch(`${API_BASE_URL}/assessments/user/${candidateId}`).then(res => res.json()),
+  getExamById: (candidateId, examId) => fetch(`${API_BASE_URL}/${candidateId}/assessment/${examId}`).then(res => res.json()),
+  getResults: (candidateId, examId) => fetch(`${API_BASE_URL}/${candidateId}/assessment/results/${examId}`).then(res => res.json()),
+  submitExam: (candidateId, examId, payload) => fetch(`${API_BASE_URL}/${candidateId}/assessment/${examId}/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(res => res.json()),
+};
+
+function ExamPage({ examDetails, onComplete }) {
+  const [loading, setLoading] = useState(true);
+  const [examData, setExamData] = useState(null);
+  const [flatQuestions, setFlatQuestions] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [selected, setSelected] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const { currentUser } = useAuth();
+  const CANDIDATE_ID = currentUser?.id;
+  useEffect(() => {
+    const loadExam = async () => {
+      setLoading(true);
+      const data = await api.getExamById(CANDIDATE_ID, examDetails.managerTemplateId);
+      if (data.category) {
+        const flattened = [];
+        Object.keys(data.category).forEach(subject => {
+          data.category[subject].questions.forEach(q => flattened.push({ ...q, subject }));
+        });
+        setExamData(data);
+        setFlatQuestions(flattened);
+        setTimeLeft(data.time_limit * 60);
+      }
+      setLoading(false);
+    };
+    loadExam();
+  }, [examDetails?.managerTemplateId, CANDIDATE_ID]);
+
+  useEffect(() => {
+    if (timeLeft <= 0 && !loading && examData) {
+      finalizeSubmit();
+      return;
+    }
+    const timerId = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(timerId);
+  }, [timeLeft, loading, examData]);
+
+  const q = flatQuestions[idx];
+
+  useEffect(() => {
+    if (q) setSelected(answers[q.id] !== undefined ? String(answers[q.id]) : '');
+  }, [idx, q, answers]);
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const saveCurrent = () => {
+    if (selected === '') return true;
+    setAnswers((prev) => ({ ...prev, [q.id]: Number(selected) }));
+    return true;
+  };
+
+  const onNext = () => {
+    if (!saveCurrent()) return;
+    if (idx < flatQuestions.length - 1) setIdx(idx + 1);
+  };
+
+  const onPrev = () => {
+    if (idx > 0) setIdx(idx - 1);
+  };
+
+  const onSubmitClick = () => {
+    saveCurrent();
+    setConfirmOpen(true);
+  };
+
+  const finalizeSubmit = async () => {
+    setConfirmOpen(false);
+    const finalAnswersWithIndices = { ...answers, ...(selected !== '' && q && { [q.id]: Number(selected) }) };
+    const indexToLetter = (index) => String.fromCharCode(65 + index);
+    const finalAnswersWithLetters = {};
+    Object.keys(finalAnswersWithIndices).forEach(questionId => {
+      const numericIndex = finalAnswersWithIndices[questionId];
+      finalAnswersWithLetters[questionId] = indexToLetter(numericIndex);
+    });
+    try {
+      const payload = { answers: finalAnswersWithLetters };
+      await api.submitExam(CANDIDATE_ID, examDetails.managerTemplateId, payload);
+      onComplete(examDetails.managerTemplateId);
+    } catch (e) {
+      console.error('Submission failed:', e);
+    }
+  };
+
+
+  // const finalizeSubmit = async () => {
+  //   setConfirmOpen(false);
+  //   const finalAnswers = { ...answers, ...(selected !== '' && q && { [q.id]: Number(selected) }) };
+  //   try {
+  //     const payload = { answers: finalAnswers };
+  //     await api.submitExam(CANDIDATE_ID, examDetails.managerTemplateId, payload);
+  //     onComplete(examDetails.id);
+  //   } catch (e) {
+  //     console.error('Submission failed:', e);
+  //   }
+  // };
+
+  const answeredCount = Object.keys(answers).length;
+  const progress = flatQuestions.length > 0 ? Math.round((answeredCount / flatQuestions.length) * 100) : 0;
+
+  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
+  if (!q) return <Typography>No questions available for this Assessment.</Typography>;
+
+  return (
+    <Paper sx={{ p: 3, borderRadius: 2 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} mb={2}>
+        <Typography variant="h6">{examData.name}</Typography>
+        <Chip label={`Time Left: ${formatTime(timeLeft)}`} color={timeLeft < 60 ? 'error' : 'secondary'} variant="filled" />
+      </Stack>
+      <Divider />
+      <Box sx={{ my: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <Box sx={{ flex: 1 }}><LinearProgress variant="determinate" value={progress} /></Box>
+          <Chip label={`${answeredCount}/${flatQuestions.length} Answered`} size="small" />
+        </Stack>
+      </Box>
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+          <Typography variant="body1">Question {idx + 1} of {flatQuestions.length}</Typography>
+          <Chip label={q.subject} color="primary" size="small" sx={{ textTransform: 'capitalize' }} />
+        </Stack>
+        <Typography variant="h6" sx={{ mb: 2 }}>{q.question}</Typography>
+        <FormControl component="fieldset">
+          <RadioGroup value={String(selected)} onChange={(e) => setSelected(e.target.value)}>
+            {q.options.map((opt, i) => (
+              <FormControlLabel key={i} value={String(i)} control={<Radio />} label={opt} sx={{ mb: 1 }} />
+            ))}
+          </RadioGroup>
+        </FormControl>
+      </Paper>
+      <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
+        <Button variant="outlined" onClick={onPrev} disabled={idx === 0}>Previous</Button>
+        <Button variant="contained" onClick={onNext} disabled={idx === flatQuestions.length - 1}>Save & Next</Button>
+        <Box sx={{ flex: 1 }} />
+        {idx === flatQuestions.length - 1 && (
+          <Button color="success" variant="contained" onClick={onSubmitClick}>Submit</Button>
+        )}
+      </Stack>
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Submit Assessment?</DialogTitle>
+        <DialogContent><Typography>This will finalize your answers. Are you sure?</Typography></DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={finalizeSubmit} variant="contained" color="success">Submit</Button>
+        </DialogActions>
+      </Dialog>
+    </Paper>
+  );
+}
+function ExamList({ exams, onAttend, onViewResult }) {
+  return (
+    <Paper sx={{ p: 3, borderRadius: 2 }}>
+      <Typography variant="h5" gutterBottom>My Assessments</Typography>
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 'bold' }}>Assessment Name</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Skill Level</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Schedule Date</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }} align="center">Action</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {exams.map((exam) => (
+              <TableRow key={exam.managerTemplateId}>
+                <TableCell>{exam.managerTemplateName}</TableCell>
+                <TableCell>{exam.difficultyLevel}</TableCell>
+                <TableCell>{exam.assignedDate}</TableCell>
+                <TableCell><Chip label={exam.status} color={exam.status === 'Completed' ? 'success' : 'warning'} size="small" /></TableCell>
+                <TableCell align="center">
+                  {exam.status === 'Completed' ? (
+                    <Button variant="outlined" onClick={() => onViewResult(exam.managerTemplateId)}>View Result</Button>
+                  ) : (
+                    <Button variant="contained" onClick={() => onAttend(exam)}>Attend Exam</Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Paper>
+  );
+}
+
+const ResultAnalysis = ({ result }) => {
+  if (!result || !result.managerTemplate || !result.managerTemplate.questions) {
+    return <Typography>Detailed analysis is not available for this result.</Typography>;
+  }
+
+  const questions = result.managerTemplate.questions;
+  let correct = 0;
+  let incorrect = 0;
+  let unanswered = 0;
+  questions.forEach(q => {
+    if (q.selectedAnswer === null || q.selectedAnswer === undefined) {
+      unanswered++;
+    } else if (q.selectedAnswer === q.answer) {
+      correct++;
+    } else {
+      incorrect++;
+    }
+  });
+  const getOptionStyle = (optionLetter, userChoice, correctLetter) => {
+    const style = { display: 'flex', alignItems: 'center', mb: 1, p: 1, borderRadius: 1, border: '1px solid transparent' };
+    const isCorrect = optionLetter === correctLetter;
+    const isUserChoice = optionLetter === userChoice;
+
+    if (isCorrect) {
+      style.backgroundColor = 'rgba(46, 125, 50, 0.1)';
+      style.borderColor = 'rgba(46, 125, 50, 0.5)';
+    } else if (isUserChoice) {
+      style.backgroundColor = 'rgba(211, 47, 47, 0.1)';
+      style.borderColor = 'rgba(211, 47, 47, 0.5)';
+    }
+    return style;
+  };
+
+  return (
+    <Box>
+      <Typography variant="h5" align="center" gutterBottom sx={{ fontWeight: 'bold' }}>
+        Overall Score: {result.score.toFixed(2)}%
+      </Typography>
+      <Grid container spacing={2} sx={{ mb: 3, textAlign: 'center' }}>
+        <Grid item xs={4}>
+          <Paper elevation={0} sx={{ p: 2, bgcolor: 'success.lighter', border: '1px solid', borderColor: 'success.light' }}>
+            <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+              <CheckCircle color="success" />
+              <Typography variant="h6">{correct}</Typography>
+            </Stack>
+            <Typography variant="body2">Correct</Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={4}>
+          <Paper elevation={0} sx={{ p: 2, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light' }}>
+            <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+              <Cancel color="error" />
+              <Typography variant="h6">{incorrect}</Typography>
+            </Stack>
+            <Typography variant="body2">Incorrect</Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={4}>
+          <Paper elevation={0} sx={{ p: 2, bgcolor: 'warning.lighter', border: '1px solid', borderColor: 'warning.light' }}>
+            <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+              <HelpOutline color="warning" />
+              <Typography variant="h6">{unanswered}</Typography>
+            </Stack>
+            <Typography variant="body2">Unanswered</Typography>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Typography>Review All Questions</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <List dense sx={{ p: 0 }}>
+            {questions.map((q, index) => {
+              let optionsList = [];
+              try {
+                const optionsObj = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+                optionsList = Object.entries(optionsObj);
+              } catch (e) {
+                console.error("Failed to parse options JSON:", q.options);
+                return null;
+              }
+              const userChoice = q.selectedAnswer;
+              const correctLetter = q.answer;
+              return (
+                <ListItem key={q.questionId || index} divider sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>{`${index + 1}. ${q.question}`}</Typography>
+                  <Box component="div" sx={{ width: '100%' }}>
+                    {optionsList.map(([letter, text]) => {
+                      const isCorrect = letter === correctLetter;
+                      const isUserChoice = letter === userChoice;
+
+                      return (
+                        <Box key={letter} sx={getOptionStyle(letter, userChoice, correctLetter)}>
+                          <Typography variant="body2" sx={{ mr: 1, minWidth: '24px' }}>
+                            {isCorrect && <CheckCircle fontSize="small" color="success" />}
+                            {!isCorrect && isUserChoice && <Cancel fontSize="small" color="error" />}
+                          </Typography>
+                          <Typography component="span" variant="body2">{`(${letter}) ${text}`}</Typography>
+                        </Box>
+                      );
+                    })}
+                    {(userChoice === null || userChoice === undefined) && (
+                      <Chip icon={<HelpOutline />} label="You did not answer this question." size="small" variant="outlined" color="warning" />
+                    )}
+                  </Box>
+                </ListItem>
+              );
+            })}
+          </List>
+        </AccordionDetails>
+      </Accordion>
+    </Box>
+  );
+};
+export default function CandidateDashboard() {
+  const { currentUser } = useAuth();
+  const [exams, setExams] = useState([]);
+  const [loadingExams, setLoadingExams] = useState(true);
+  const [currentView, setCurrentView] = useState('home');
+  const [selectedExam, setSelectedExam] = useState(null);
+  const [resultInfo, setResultInfo] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const CANDIDATE_ID = currentUser?.id;
+
+  useEffect(() => {
+    const loadUserExams = async () => {
+      setLoadingExams(true);
+      try {
+        const allExamsList = await api.getAllExams(CANDIDATE_ID);
+        setExams(allExamsList);
+      } catch (e) {
+        console.error("Failed to load exams:", e);
+        setExams([]); 
+      }
+      setLoadingExams(false);
+    };
+    if (currentView === 'home' && CANDIDATE_ID) {
+      loadUserExams();
+    }
+  }, [currentView, CANDIDATE_ID]); 
+
+  const handleAttendExam = (exam) => {
+    setSelectedExam(exam);
+    setCurrentView('exam');
+  };
+  const handleViewResult = async (examId) => {
+    setResultInfo(null);
+    setInfoOpen(true);
+    try {
+      const resultData = await api.getResults(CANDIDATE_ID, examId);
+      setResultInfo(resultData);
+    } catch (e) {
+      console.error('Failed to fetch result:', e);
+      setResultInfo(null);
+    }
+  };
+
+  const handleExamComplete = () => {
+    setCurrentView('home');
+    setSelectedExam(null);
+  };
+
+  if (loadingExams && currentView === 'home') {
+    return <Container maxWidth="lg" sx={{ py: 4, textAlign: 'center' }}><CircularProgress /></Container>;
+  }
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {currentView === 'home' ? (
+        <ExamList exams={exams} onAttend={handleAttendExam} onViewResult={handleViewResult} />
+      ) : (
+        <ExamPage examDetails={selectedExam} onComplete={handleExamComplete} />
+      )}
+
+      <Dialog open={infoOpen} onClose={() => setInfoOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+          Assessment Result & Analysis
+        </DialogTitle>
+        <DialogContent dividers>
+          {resultInfo ? (
+            <ResultAnalysis result={resultInfo} />
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setInfoOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
+  );
+}

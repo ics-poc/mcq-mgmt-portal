@@ -1,0 +1,4 @@
+"firstName","lastName","email","phone","userRoleId","status","language","timezone","password","employeeNumber","employeeGrade","reportingManagerId","project","BusinessUnit"
+
+"AJAY","hgfghjk","AJAY122@gmail.com","9087654679876","4","ACTIVE","en-IN","Asia/Kolkata","GHGFDSE","23","E2","4","IM","3"
+"KRISHNA","hgfghjk","KRISHNA222@gmail.com","98765678909","4","ACTIVE","en-IN","Asia/Kolkata","GHGFDSE","23","E1","4","IM","4"

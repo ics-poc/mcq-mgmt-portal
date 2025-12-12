@@ -1,0 +1,93 @@
+Level,Area,Sub-Area,Application Area if Applicable,Reference,Questions,Multiple Choices,Correct Answer
+Beginner,Technology,UI/UX,.NET,,1. Which of the following is responsible for managing the execution of .NET programs?,"A) CLR (Common Language Runtime)
+B) CLS (Common Language Specification)
+C) CTS (Common Type System)
+D) JIT Compiler",A
+Beginner,Technology,UI/UX,HTML,,What is the select tag used for?,"A) Creates a combo box.
+B) Select some attributes and change their style.
+C) Change text font.
+D)None of the above",A
+Beginner,Technology,UI/UX,HTML,,. What does the <iframe> tag's sandbox attribute serve as?,"a) It prevent resizing of the iframe
+b) It allows CORS requests in iframes
+c) It applies extra restrictions to the content in the iframe
+d) It enhances iframe rendering performance",C
+Beginner,Technology,UI/UX,HTML,,What tag is used to render an image on a webpage?,"a) img
+B) src
+C) image
+D)None of the above.",A
+Beginner,Technology,UI/UX,HTML,,What is meant by an empty tag in HTML?,"A) There is no such concept of an empty tag in HTML
+B) An empty tag does not require a closing tag
+C) An empty tag cannot have any content within it
+D)None of the above.",B
+Beginner,Technology,UI/UX,HTML,,"What is the purpose of the loading=""lazy"" element in HTML for images?","a) Makes the image load first for better UX
+b) Loads the image only after all CSS has been parsed.
+c) Disables images loading for low-bandwidth users
+d) Delays image loading until the user scrolls near it
+",D
+Beginner,Technology,UI/UX,Javascript,,Which function is used to serialize an object into a JSON string in Javascript?,"a) stringify()
+B) parse()
+C) convert()
+D) None of the above",A
+Beginner,Technology,UI/UX,Javascript,,"Which methods is used to access HTML elements using Javascript?
+","a) getElementbyId()
+B) getElementsByClassName()
+c) Both A and B
+D) None of the above",C
+Beginner,Technology,UI/UX,Javascript,,How to stop an interval timer in Javascript?,"A)clearInterval
+B)clearTimer
+C)intervalOver
+D)None of the above",A
+Beginner,Technology,UI/UX,Javascript,," The process in which an object or data structure is translated into a format suitable for transferral over a network, or storage is called?","A)Object Serialization
+B)Object Encapsulation
+C)Object Inheritance
+D)None of the above",A
+Beginner,Technology,UI/UX,Javascript,,What keyword is used to declare an asynchronous function in Javascript,"A)async
+B)await
+C)setTimeout
+D)None of the above",A
+Beginner,Technology,UI/UX,Javascript,,"What keyword is used to check whether a given property is valid or not?
+","A)in
+B)is in
+C)exists
+D) lies",A
+Beginner,Technology,UI/UX,Javascript,,What does the ‘toLocateString()’ method do in JS?,"A)Returns a localised object representation.
+B)Returns a parsed string.
+C)Returns a localized string representation of an object.
+D)None of the abov",C
+Beginner,Technology,UI/UX,CSS,,". What is the  default value of the ""overflow"" property?","a) auto
+ b) scroll 
+c) hidden 
+d) visible",D
+Beginner,Technology,UI/UX,CSS,,What does @supports do in CSS?,"a) Applies styles based on screen size
+b) Imports fonts in the stylesheet
+c) Applies styles only if the browser supports a certain feature
+d) Defines custom media queries",C
+Beginner,Technology,UI/UX,CSS,,Which CSS property controls the text size?,"a) Prevents content from overflowing
+b) Optimizes performance by limiting layout, paint, and style scope
+c) Clips background and border
+d) Forces parent to match child's height",B
+Beginner,Technology,UI/UX,CSS,,"What is the effect of ""position: sticky"" in CSS?","a) Keeps an element fixed to the screen
+b) Makes an element float on top of others
+c) Makes an element scroll away normally, but stick when it reaches a threshold
+d) Prevents element from being removed",C
+Beginner,Technology,UI/UX,Angular,,"What is the role of ""Injector"" in Angular?","a) Runs lifecycle hooks
+b) Complies templates
+c) Creates and delivers instances of dependencies
+d) Tracks observable emissions",C
+Beginner,Technology,UI/UX,Angular,,What does ngOnDestroy() lifecycle hook do?,"a) Cleans up DOM changes
+b) Fires after a component is created
+c) Cleans up subscriptions or memory when a component is destroyed
+d) Destroys parent modules
+",C
+Beginner,Technology,UI/UX,Angular,,Which of the following is NOT a valid RxJS operator in Angular development?,"a) swithchMap
+b) mapTo
+c) connectTo
+d) mergeMap",C
+Beginner,Technology,UI/UX,Angular,,"In Angular, what does ng-content allows you to do?","a) Load lazy modules dynamically
+b) Bind data from child to parent
+c) Project external content into a component
+d) Run scripts before render",C
+Beginner,Technology,UI/UX,Angular,,How can you optimize performance for large Angular apps?,"a) Use ngModel over reactive forms
+b) Avoid using trackBy in *ngfor
+c) Enable lazy loading of modules
+d) Use ViewChild for all components",C
