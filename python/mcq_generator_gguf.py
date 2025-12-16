@@ -27,8 +27,10 @@ class MCQGeneratorGGUF:
             model_filename: Specific GGUF filename (default from env)
             device: Device to run on (default from env)
         """
-        self.model_path = model_path or os.getenv('MODEL_PATH', 'unsloth/gemma-3-4b-it-GGUF')
-        self.model_filename = model_filename or os.getenv('MODEL_FILENAME', 'gemma-3-4b-it-Q4_0.gguf')
+        #self.model_path = model_path or os.getenv('MODEL_PATH', 'unsloth/gemma-3-4b-it-GGUF')
+        #self.model_filename = model_filename or os.getenv('MODEL_FILENAME', 'gemma-3-4b-it-Q4_0.gguf')
+        self.model_path = model_path or os.getenv('MODEL_PATH', 'TheBloke/phi-2-GGUF')
+        self.model_filename = model_filename or os.getenv('MODEL_FILENAME', 'phi-2.Q4_K_M.gguf')
         self.device = device or os.getenv('DEVICE', 'cpu')
         
         # Hugging Face token for downloading

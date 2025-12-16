@@ -1,5 +1,6 @@
 python/__pycache__/
 python/venv/
+python/logs/*.log
 react/node_modules/
 spring-boot/.settings
 spring-boot/target
